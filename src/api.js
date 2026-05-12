@@ -8,19 +8,18 @@ const isDev   = window.location.hostname === 'localhost' || window.location.host
 
 let BASE
 if (isNgrok) {
-  // Served from FastAPI via ngrok — same origin, no prefix needed
   BASE = window.location.origin
 } else if (isDev) {
-  // Local dev — Vite proxy handles /api → localhost:8000
   BASE = import.meta.env.VITE_API_URL_LOCAL || 'https://attendance-backend-2mky.onrender.com'
 } else {
-  BASE = window.location.origin
+  // Production (Vercel) — use the Render backend
+  BASE = import.meta.env.VITE_API_BASE_URL || 'https://attendance-backend-2mky.onrender.com'
 }
 
 console.log('[API] Base URL:', BASE)
 
 const api = axios.create({
-  baseURL: '',
+  baseURL: BASE,
   timeout: 30000,
   headers: { 'ngrok-skip-browser-warning': 'true' },
 })
