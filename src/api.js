@@ -84,4 +84,20 @@ export const getStudentsOverview = ()   => api.get('/admin/students/overview')
 export const getSubjectsByCourse = (id) => api.get(`/admin/subjects/course/${id}`)
 export const getTodayTimetable   = ()   => api.get('/admin/timetable/today')
 
+// Assignments
+export const addAssignment           = (d)  => api.post('/work/assignment/add', d)
+export const getAssignmentsBySubject = (id) => api.get(`/work/assignments/subject/${id}`)
+export const getAssignmentsByTeacher = (id) => api.get(`/work/assignments/teacher/${id}`)
+export const getAssignmentsByCourse  = (id) => api.get(`/work/assignments/course/${id}`)
+export const updateAssignment        = (id, d) => api.put(`/work/assignment/${id}`, d)
+export const deleteAssignment        = (id) => api.delete(`/work/assignment/${id}`)
+
+// Lab Records
+export const addLabRecord           = (d)  => api.post('/work/lab-record/add', d)
+export const getLabRecordsBySubject = (id) => api.get(`/work/lab-records/subject/${id}`)
+export const getLabRecordsByTeacher = (id) => api.get(`/work/lab-records/teacher/${id}`)
+export const getLabRecordsByCourse  = (id) => api.get(`/work/lab-records/course/${id}`)
+export const updateLabRecord        = (id, d) => api.put(`/work/lab-record/${id}`, d)
+export const deleteLabRecord        = (id) => api.delete(`/work/lab-record/${id}`)
+
 export default api
