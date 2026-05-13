@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { getStudentAttendance, getSubjectsByCourse, verifyGPS, markAttendance, getAllTimetable } from '../api'
+import { getStudentAttendance, getSubjectsByCourse, verifyGPS, markAttendance, getAllTimetable, getAssignmentsByCourse, getLabRecordsByCourse } from '../api'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { LogOut, GraduationCap, TrendingUp, AlertTriangle, Clock, MapPin, ArrowLeft, CheckCircle, XCircle, Camera, RefreshCw, Loader, ShieldCheck, ShieldX } from 'lucide-react'
 
@@ -325,6 +325,8 @@ export default function StudentDashboard({ showToast }) {
   const [records, setRecords]         = useState([])
   const [stats, setStats]             = useState([])
   const [timetable, setTimetable]     = useState([])
+  const [assignments, setAssignments] = useState([])
+  const [labRecords, setLabRecords]   = useState([])
   const [loading, setLoading]         = useState(true)
   const [marking, setMarking]         = useState(false)
   const [gpsStatus, setGpsStatus]     = useState(null)
@@ -345,13 +347,17 @@ export default function StudentDashboard({ showToast }) {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [attRes, subRes, ttRes] = await Promise.all([
+      const [attRes, subRes, ttRes, aRes, lRes] = await Promise.all([
         getStudentAttendance(user.student_id),
         getSubjectsByCourse(user.course_id),
         getAllTimetable(),
+        getAssignmentsByCourse(user.course_id),
+        getLabRecordsByCourse(user.course_id),
       ])
       setRecords(attRes.data.records)
       setSubjects(subRes.data)
+      setAssignments(aRes.data)
+      setLabRecords(lRes.data)
       const mySubIds = new Set(subRes.data.map(s => s.id))
       setTimetable(ttRes.data.filter(t => mySubIds.has(t.subject_id)))
       const subMap = {}
@@ -746,11 +752,12 @@ export default function StudentDashboard({ showToast }) {
           </div>
 
           <div style={{ display:'flex', gap:4, marginBottom:24, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:4 }}>
-            {[{id:'overview',label:'📊 Subjects'},{id:'chart',label:'📈 Charts'}].map(t => (
+            {[{id:'overview',label:'📊 Subjects'},{id:'chart',label:'📈 Charts'},{id:'assignments',label:'📝 Assignments'},{id:'labrecords',label:'🧪 Lab Records'}].map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-                flex:1, padding:'9px 16px', borderRadius:8, fontSize:13, fontWeight:600,
+                flex:1, padding:'9px 6px', borderRadius:8, fontSize:12, fontWeight:600,
                 background: activeTab === t.id ? 'var(--accent)' : 'transparent',
                 color: activeTab === t.id ? 'white' : 'var(--text3)', transition:'all 0.2s',
+                border:'none', cursor:'pointer',
               }}>{t.label}</button>
             ))}
           </div>
@@ -814,6 +821,86 @@ export default function StudentDashboard({ showToast }) {
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── ASSIGNMENTS TAB ── */}
+          {activeTab === 'assignments' && (
+            <div className="fade-in">
+              {assignments.length === 0 ? (
+                <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:40, textAlign:'center', color:'var(--text3)' }}>
+                  <span style={{ fontSize:36, display:'block', marginBottom:10 }}>📝</span>
+                  <p style={{ fontSize:14 }}>No assignments posted yet</p>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                  {assignments.map((a, i) => {
+                    const due     = new Date(a.due_date)
+                    const today   = new Date()
+                    const diff    = Math.ceil((due - today) / (1000 * 60 * 60 * 24))
+                    const overdue = diff < 0
+                    const urgent  = diff >= 0 && diff <= 3
+                    return (
+                      <div key={a.id} style={{ background:'var(--surface)', border:`1px solid ${overdue ? 'var(--red)' : urgent ? '#f59e0b' : 'var(--border)'}`, borderRadius:'var(--radius)', padding:'16px 18px' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:11, color:'var(--text3)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>{a.subject_name}</div>
+                            <div style={{ fontWeight:700, fontSize:15, marginBottom:6 }}>{a.title}</div>
+                            {a.description && <div style={{ fontSize:13, color:'var(--text3)', marginBottom:8 }}>{a.description}</div>}
+                            <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                              <span style={{ fontSize:12, padding:'3px 10px', borderRadius:99, background: overdue ? 'rgba(255,77,106,0.12)' : urgent ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.1)', color: overdue ? 'var(--red)' : urgent ? '#f59e0b' : 'var(--accent3)' }}>
+                                📅 Due: {a.due_date}
+                              </span>
+                              {overdue && <span style={{ fontSize:12, color:'var(--red)', fontWeight:700 }}>Overdue!</span>}
+                              {urgent && !overdue && <span style={{ fontSize:12, color:'#f59e0b', fontWeight:700 }}>Due soon!</span>}
+                            </div>
+                          </div>
+                          <div style={{ fontSize:11, color:'var(--text3)', textAlign:'right', flexShrink:0 }}>
+                            by {a.teacher_name}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── LAB RECORDS TAB ── */}
+          {activeTab === 'labrecords' && (
+            <div className="fade-in">
+              {labRecords.length === 0 ? (
+                <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:40, textAlign:'center', color:'var(--text3)' }}>
+                  <span style={{ fontSize:36, display:'block', marginBottom:10 }}>🧪</span>
+                  <p style={{ fontSize:14 }}>No lab records posted yet</p>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                  {labRecords.map(l => {
+                    const due     = new Date(l.due_date)
+                    const today   = new Date()
+                    const diff    = Math.ceil((due - today) / (1000 * 60 * 60 * 24))
+                    const overdue = diff < 0
+                    const urgent  = diff >= 0 && diff <= 3
+                    return (
+                      <div key={l.id} style={{ background:'var(--surface)', border:`1px solid ${overdue ? 'var(--red)' : urgent ? '#f59e0b' : 'var(--border)'}`, borderRadius:'var(--radius)', padding:'16px 18px' }}>
+                        <div style={{ fontSize:11, color:'var(--text3)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>{l.subject_name} · Sem {l.semester}</div>
+                        <div style={{ fontWeight:700, fontSize:15, marginBottom:6 }}>{l.title}</div>
+                        {l.description && <div style={{ fontSize:13, color:'var(--text3)', marginBottom:8 }}>{l.description}</div>}
+                        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                          <span style={{ fontSize:12, padding:'3px 10px', borderRadius:99, background: overdue ? 'rgba(255,77,106,0.12)' : urgent ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.1)', color: overdue ? 'var(--red)' : urgent ? '#f59e0b' : 'var(--accent3)' }}>
+                            📅 Submit by: {l.due_date}
+                          </span>
+                          {overdue && <span style={{ fontSize:12, color:'var(--red)', fontWeight:700 }}>Overdue!</span>}
+                          {urgent && !overdue && <span style={{ fontSize:12, color:'#f59e0b', fontWeight:700 }}>Due soon!</span>}
+                          <span style={{ fontSize:12, color:'var(--text3)' }}>by {l.teacher_name}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
