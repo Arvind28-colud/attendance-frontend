@@ -1,27 +1,38 @@
 import axios from 'axios'
 
-// Auto-detect environment:
-// - ngrok/phone: same origin (FastAPI serves both frontend + API)
-// - localhost dev: use Vite proxy (/api → localhost:8000)
-const isNgrok = window.location.hostname.includes('ngrok')
-const isDev   = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+// ── Environment detection ──────────────────────────────────
+// Priority: explicit env var > ngrok > local dev > Vercel (uses Render backend)
+const RENDER_BACKEND = 'https://attendance-backend-2mky.onrender.com'
+
+const isNgrok  = window.location.hostname.includes('ngrok')
+const isDev    = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+const isVercel = window.location.hostname.includes('vercel.app')
 
 let BASE
-if (isNgrok) {
+if (import.meta.env.VITE_API_URL) {
+  // Explicit override — highest priority
+  BASE = import.meta.env.VITE_API_URL
+} else if (isNgrok) {
+  // Served from FastAPI via ngrok — same origin
   BASE = window.location.origin
 } else if (isDev) {
-  BASE = import.meta.env.VITE_API_URL_LOCAL || 'https://attendance-backend-2mky.onrender.com'
+  // Local dev — point directly to local FastAPI
+  BASE = import.meta.env.VITE_API_URL_LOCAL || 'http://localhost:8000'
+} else if (isVercel) {
+  // Deployed on Vercel — backend is on Render
+  BASE = RENDER_BACKEND
 } else {
-  // Production (Vercel) — use the Render backend
-  BASE = import.meta.env.VITE_API_BASE_URL || 'https://attendance-backend-2mky.onrender.com'
+  BASE = window.location.origin
 }
 
 console.log('[API] Base URL:', BASE)
 
 const api = axios.create({
   baseURL: BASE,
-  timeout: 30000,
+  // 60 s timeout — Render free tier spins down and needs ~30 s cold-start
+  timeout: 60000,
   headers: { 'ngrok-skip-browser-warning': 'true' },
+  withCredentials: false,   // must be false when backend uses explicit origins list
 })
 
 // Auth
