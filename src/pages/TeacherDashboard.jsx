@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { getSubjects, getSubjectAttendanceTeacher, getStudents, getAssignments, createAssignment } from '../api'
+import { getSubjects, getSubjectAttendanceTeacher, getStudents } from '../api'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { LogOut, BookOpen, ArrowLeft, ChevronRight, Upload } from 'lucide-react'
+import { LogOut, BookOpen, ArrowLeft, ChevronRight } from 'lucide-react'
 
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768) // ✅ check immediately
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
@@ -27,13 +27,6 @@ export default function TeacherDashboard({ showToast }) {
   const [loading, setLoading]         = useState(true)
   const [recLoading, setRecLoading]   = useState(false)
   const [mobileView, setMobileView]   = useState('list')
-  const [detailTab, setDetailTab]     = useState('attendance')
-
-  // Lab Records state
-  const [assignments, setAssignments]   = useState([])
-  const [assLoading, setAssLoading]     = useState(false)
-  const [uploading, setUploading]       = useState(false)
-  const [uploadForm, setUploadForm]     = useState({ title: '', description: '', due_date: '' })
 
   useEffect(() => {
     if (!user) { navigate('/'); return }
@@ -54,7 +47,6 @@ export default function TeacherDashboard({ showToast }) {
 
   const loadSubjectRecords = async (sub) => {
     setSelectedSub(sub)
-    setDetailTab('attendance')
     if (isMobile) setMobileView('detail')
     setRecLoading(true)
     try {
@@ -62,40 +54,12 @@ export default function TeacherDashboard({ showToast }) {
       setSubRecords(res.data.records)
     } catch { showToast('Failed ❌', 'error') }
     setRecLoading(false)
-
-    // Load assignments for this subject
-    setAssLoading(true)
-    try {
-      const res = await getAssignments(sub.id)
-      setAssignments(res.data)
-    } catch { setAssignments([]) }
-    setAssLoading(false)
-  }
-
-  const handleUploadAssignment = async () => {
-    if (!uploadForm.title || !uploadForm.due_date) return
-    setUploading(true)
-    try {
-      const res = await createAssignment({
-        subject_id: selectedSub.id,
-        title: uploadForm.title,
-        description: uploadForm.description,
-        due_date: uploadForm.due_date,
-      })
-      setAssignments(prev => [...prev, res.data])
-      setUploadForm({ title: '', description: '', due_date: '' })
-      showToast('Assignment uploaded ✅', 'success')
-    } catch {
-      showToast('Failed to upload assignment ❌', 'error')
-    }
-    setUploading(false)
   }
 
   const goBack = () => {
     setMobileView('list')
     setSelectedSub(null)
     setSubRecords([])
-    setAssignments([])
   }
 
   const summary = () => {
@@ -213,12 +177,7 @@ export default function TeacherDashboard({ showToast }) {
 
   const SubjectDetail = () => {
     const data = summary()
-    // Average number of students attending per class (present counts / total_classes)
-    const avgAttending = selectedSub?.total_classes > 0 && data.length > 0
-      ? Math.round(data.reduce((a, s) => a + s.present, 0) / selectedSub.total_classes)
-      : data.length > 0
-        ? Math.round(data.reduce((a, s) => a + s.present, 0) / (data[0]?.total || 1))
-        : 0
+    const avg  = data.length > 0 ? Math.round(data.reduce((a, s) => a + s.pct, 0) / data.length) : 0
 
     if (recLoading) return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
@@ -235,181 +194,70 @@ export default function TeacherDashboard({ showToast }) {
           </div>
         )}
 
-        {/* ── Stats: only 2 cards now ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
           <div className="stat-card">
             <div className="stat-label">Students</div>
             <div className="stat-value">{data.length}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Avg Attending</div>
-            <div className="stat-value" style={{ color: 'var(--green)' }}>{avgAttending}</div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>students / class</div>
+            <div className="stat-label">Avg</div>
+            <div className="stat-value" style={{ color: 'var(--green)' }}>{avg}%</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Below 75%</div>
+            <div className="stat-value" style={{ color: 'var(--red)' }}>{data.filter(s => s.pct < 75).length}</div>
           </div>
         </div>
 
-        {/* ── Detail Tabs ── */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 4 }}>
-          {[{ id: 'attendance', label: '📋 Attendance' }, { id: 'lab', label: '🧪 Lab Records' }].map(t => (
-            <button key={t.id} onClick={() => setDetailTab(t.id)} style={{
-              flex: 1, padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-              background: detailTab === t.id ? 'var(--accent)' : 'transparent',
-              color: detailTab === t.id ? 'white' : 'var(--text3)', transition: 'all 0.2s',
-              border: 'none', cursor: 'pointer',
-            }}>{t.label}</button>
-          ))}
+        {data.length > 0 && (
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text2)' }}>Attendance Chart</div>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={data.slice(0, 15)}>
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text3)' }} angle={-30} textAnchor="end" height={45}/>
+                <YAxis tick={{ fontSize: 11, fill: 'var(--text3)' }} domain={[0, 100]}/>
+                <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} formatter={(v) => [`${v}%`]}/>
+                <Bar dataKey="pct" fill="var(--accent)" radius={[4, 4, 0, 0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+          {data.length === 0 ? (
+            <div className="empty-state" style={{ padding: 40 }}>No attendance records yet</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ minWidth: 340 }}>
+                <thead>
+                  <tr><th>Student</th><th>Roll No</th><th>Present</th><th>Attendance</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {data.map((s, i) => (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600, color: 'var(--text)' }}>{s.name}</td>
+                      <td style={{ fontFamily: 'Space Mono, monospace', fontSize: 12 }}>{s.roll_no}</td>
+                      <td style={{ fontSize: 13 }}>{s.present}/{selectedSub.total_classes || '?'}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ width: 50, height: 6, background: 'var(--bg2)', borderRadius: 3 }}>
+                            <div style={{ height: '100%', width: `${s.pct}%`, background: s.pct >= 75 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }}/>
+                          </div>
+                          <span style={{ fontFamily: 'Space Mono', fontSize: 11, fontWeight: 700, color: s.pct >= 75 ? 'var(--green)' : 'var(--red)' }}>{s.pct}%</span>
+                        </div>
+                      </td>
+                      <td>
+                        {s.pct >= 75
+                          ? <span className="badge badge-green">Good</span>
+                          : <span className="badge badge-red">Low</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-
-        {/* ── ATTENDANCE TAB ── */}
-        {detailTab === 'attendance' && (
-          <div className="fade-in">
-            {data.length > 0 && (
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text2)' }}>Attendance Chart</div>
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={data.slice(0, 15)}>
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text3)' }} angle={-30} textAnchor="end" height={45}/>
-                    <YAxis tick={{ fontSize: 11, fill: 'var(--text3)' }} domain={[0, 100]}/>
-                    <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)' }} formatter={(v) => [`${v}%`]}/>
-                    <Bar dataKey="pct" fill="var(--accent)" radius={[4, 4, 0, 0]}/>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-              {data.length === 0 ? (
-                <div className="empty-state" style={{ padding: 40 }}>No attendance records yet</div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ minWidth: 340 }}>
-                    <thead>
-                      <tr><th>Student</th><th>Roll No</th><th>Present</th><th>Attendance</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                      {data.map((s, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600, color: 'var(--text)' }}>{s.name}</td>
-                          <td style={{ fontFamily: 'Space Mono, monospace', fontSize: 12 }}>{s.roll_no}</td>
-                          <td style={{ fontSize: 13 }}>{s.present}/{selectedSub.total_classes || '?'}</td>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <div style={{ width: 50, height: 6, background: 'var(--bg2)', borderRadius: 3 }}>
-                                <div style={{ height: '100%', width: `${s.pct}%`, background: s.pct >= 75 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }}/>
-                              </div>
-                              <span style={{ fontFamily: 'Space Mono', fontSize: 11, fontWeight: 700, color: s.pct >= 75 ? 'var(--green)' : 'var(--red)' }}>{s.pct}%</span>
-                            </div>
-                          </td>
-                          <td>
-                            {s.pct >= 75
-                              ? <span className="badge badge-green">Good</span>
-                              : <span className="badge badge-red">Low</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── LAB RECORDS TAB ── */}
-        {detailTab === 'lab' && (
-          <div className="fade-in">
-            {/* Upload form */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20, marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>📤 Upload Assignment</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <input
-                  className="input-field"
-                  placeholder="Assignment title *"
-                  value={uploadForm.title}
-                  onChange={e => setUploadForm(p => ({ ...p, title: e.target.value }))}
-                />
-                <textarea
-                  className="input-field"
-                  placeholder="Description (optional)"
-                  rows={2}
-                  value={uploadForm.description}
-                  onChange={e => setUploadForm(p => ({ ...p, description: e.target.value }))}
-                  style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                />
-                <div>
-                  <label style={{ fontSize: 12, color: 'var(--text3)', display: 'block', marginBottom: 4 }}>
-                    Last Date of Submission *
-                  </label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={uploadForm.due_date}
-                    min={new Date().toISOString().split('T')[0]}
-                    onChange={e => setUploadForm(p => ({ ...p, due_date: e.target.value }))}
-                  />
-                </div>
-                <button
-                  onClick={handleUploadAssignment}
-                  disabled={uploading || !uploadForm.title || !uploadForm.due_date}
-                  className="btn btn-primary"
-                  style={{ alignSelf: 'flex-end', padding: '9px 20px', display: 'flex', alignItems: 'center', gap: 8 }}
-                >
-                  {uploading
-                    ? <><span className="spinner" style={{ borderTopColor: 'white' }}/> Uploading...</>
-                    : <><Upload size={15}/> Upload Assignment</>}
-                </button>
-              </div>
-            </div>
-
-            {/* Assignments list */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
-                Uploaded Assignments ({assignments.length})
-              </div>
-              {assLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-                  <span className="spinner" style={{ width: 28, height: 28 }}/>
-                </div>
-              ) : assignments.length === 0 ? (
-                <div className="empty-state" style={{ padding: 40 }}>No assignments uploaded yet</div>
-              ) : assignments.map((a, i) => {
-                const due = new Date(a.due_date)
-                const today = new Date()
-                today.setHours(0, 0, 0, 0)
-                const daysLeft = Math.ceil((due - today) / (1000 * 60 * 60 * 24))
-                const overdue = daysLeft < 0
-                return (
-                  <div key={i} style={{ padding: '16px 18px', borderBottom: i < assignments.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{a.title}</div>
-                        {a.description && (
-                          <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 6 }}>{a.description}</div>
-                        )}
-                        <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                          Uploaded: {new Date(a.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{
-                          fontSize: 11, fontWeight: 700,
-                          color: overdue ? 'var(--red)' : daysLeft <= 2 ? 'var(--yellow)' : 'var(--green)',
-                          background: overdue ? 'rgba(255,77,106,0.1)' : daysLeft <= 2 ? 'rgba(255,209,102,0.1)' : 'rgba(34,211,160,0.1)',
-                          padding: '4px 10px', borderRadius: 99, marginBottom: 4, whiteSpace: 'nowrap',
-                        }}>
-                          {overdue ? '⚠️ Overdue' : daysLeft === 0 ? '⏰ Due Today' : `📅 ${daysLeft}d left`}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                          Due: {due.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
     )
   }
