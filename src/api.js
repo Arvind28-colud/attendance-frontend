@@ -58,6 +58,7 @@ export const verifyOTP     = (data) => api.post('/reset/verify-otp', data)
 export const resetPassword = (data) => api.post('/reset/reset-password', data)
 
 // Admin
+export const adminLogin          =(data) => api.post('/admin/login', data)
 export const getAdminStats       = ()   => api.get('/admin/overview/stats')
 export const getDepartments      = ()   => api.get('/admin/departments')
 export const addDepartment       = (d)  => api.post('/admin/department/add', d)
