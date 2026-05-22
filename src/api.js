@@ -36,13 +36,12 @@ const api = axios.create({
 })
 
 // Auth
-export const studentLogin    = (data) => api.post('/auth/student/login', data)
-export const studentRegister = (data) => api.post('/auth/student/register', data)
-export const teacherLogin    = (data) => api.post('/auth/teacher/login', data)
-export const teacherRegister = (data) => api.post('/auth/teacher/register', data)
-export const adminLogin      = (data) => api.post('/admin/login', data)
-export const updateFace      = (data) => api.post('/auth/student/update-face', data)
-export const getFace         = (roll)  => api.get(`/auth/student/face/${roll}`)
+export const studentLogin    = (data) => api.post('/student/login', data)
+export const studentRegister = (data) => api.post('/student/register', data)
+export const teacherLogin    = (data) => api.post('/teacher/login', data)
+export const teacherRegister = (data) => api.post('/teacher/register', data)
+export const updateFace      = (data) => api.post('/student/update-face', data)
+export const getFace         = (roll) => api.get(`/student/face/${roll}`)
 
 // Attendance
 export const markAttendance              = (data)       => api.post('/attendance/mark', data)
