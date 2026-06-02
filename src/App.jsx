@@ -1,73 +1,58 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useCallback } from 'react'
-import { AuthProvider, useAuth } from './context/AuthContext'
-import LoginPage      from './pages/LoginPage'
-import RegisterPage   from './pages/RegisterPage'
-import StudentDashboard from './pages/StudentDashboard'
-import TeacherDashboard from './pages/TeacherDashboard'
-import AdminDashboard   from './pages/AdminDashboard'
-import ResetPage        from './pages/ResetPage'
-import Toast            from './components/Toast'
+import { useState } from "react";
+import Login        from "./components/Login";
+import ClockStation from "./components/ClockStation";
+import Dashboard    from "./components/Dashboard";
+import Employees    from "./components/Employees";
+import Register     from "./components/Register";
+import Attendance   from "./components/Attendance";
+import Reports      from "./components/Reports";
+import "./App.css";
 
-function ProtectedRoute({ children, allowedRole }) {
-  const { user, role } = useAuth()
-  if (!user) return <Navigate to="/" replace/>
-  if (allowedRole && role !== allowedRole) return <Navigate to="/" replace/>
-  return children
-}
-
-function AppRoutes() {
-  const [toasts, setToasts] = useState([])
-
-  const showToast = useCallback((message, type = 'info') => {
-    const id = Date.now()
-    setToasts(prev => [...prev, { id, message, type }])
-  }, [])
-
-  const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
-  }, [])
-
-  return (
-    <>
-      <Routes>
-        <Route path="/"        element={<LoginPage showToast={showToast}/>}/>
-        <Route path="/register" element={<RegisterPage showToast={showToast}/>}/>
-        <Route path="/reset"    element={<ResetPage showToast={showToast}/>}/>
-        <Route path="/student"  element={
-          <ProtectedRoute allowedRole="student">
-            <StudentDashboard showToast={showToast}/>
-          </ProtectedRoute>
-        }/>
-        <Route path="/teacher"  element={
-          <ProtectedRoute allowedRole="teacher">
-            <TeacherDashboard showToast={showToast}/>
-          </ProtectedRoute>
-        }/>
-        <Route path="/admin"    element={
-          <ProtectedRoute allowedRole="admin">
-            <AdminDashboard showToast={showToast}/>
-          </ProtectedRoute>
-        }/>
-        <Route path="*" element={<Navigate to="/" replace/>}/>
-      </Routes>
-
-      {/* Toast container */}
-      <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {toasts.map(t => (
-          <Toast key={t.id} message={t.message} type={t.type} onClose={() => removeToast(t.id)}/>
-        ))}
-      </div>
-    </>
-  )
-}
+const TABS = [
+  { id:"station",    label:"Clock-in",   icon:"ti-fingerprint"      },
+  { id:"dashboard",  label:"Dashboard",  icon:"ti-layout-dashboard" },
+  { id:"register",   label:"Register",   icon:"ti-user-plus"        },
+  { id:"employees",  label:"Employees",  icon:"ti-users"            },
+  { id:"attendance", label:"Attendance", icon:"ti-calendar-stats"   },
+  { id:"reports",    label:"Reports",    icon:"ti-report-money"     },
+];
 
 export default function App() {
+  const [admin,  setAdmin]  = useState(null);
+  const [active, setActive] = useState("station");
+  if (!admin) return <Login onLogin={setAdmin} />;
+  const render = () => {
+    switch(active){
+      case "station":    return <ClockStation />;
+      case "dashboard":  return <Dashboard />;
+      case "register":   return <Register />;
+      case "employees":  return <Employees />;
+      case "attendance": return <Attendance />;
+      case "reports":    return <Reports />;
+      default:           return <Dashboard />;
+    }
+  };
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes/>
-      </BrowserRouter>
-    </AuthProvider>
-  )
+    <div className="app">
+      <nav className="nav">
+        <div className="nav-logo">◈ AttendTrack</div>
+        {TABS.map(t=>(
+          <button key={t.id} className={`nav-tab ${active===t.id?"active":""}`} onClick={()=>setActive(t.id)}>{t.label}</button>
+        ))}
+        <div className="nav-right">
+          <span className="nav-user">👤 {admin.username}</span>
+          <button className="btn-logout" onClick={()=>setAdmin(null)}>Logout</button>
+        </div>
+      </nav>
+      <main className="content" key={active}>{render()}</main>
+      <nav className="mobile-nav">
+        {TABS.map(t=>(
+          <button key={t.id} className={`mobile-nav-item ${active===t.id?"active":""}`} onClick={()=>setActive(t.id)}>
+            <i className={`ti ${t.icon}`} aria-hidden="true" />
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
 }
